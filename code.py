@@ -9,15 +9,13 @@ import time
 # CONFIGURATION
 
 # measurements in mm
-# ARM_A_LENGTH = 85.25 # length of the entire arm
-ARM_A_LENGTH = 159.25
-# ARM_B_LENGTH = 103.0
+ARM_A_LENGTH = 159.25 # length of the entire arm
 ARM_B_LENGTH = 177.0
-STRIP_PIN = board.D1
 
 RANGE = 20
 DISTANCE = 5
 
+# Limit the drawable size to the size of a US Letter-sized page
 MAX_X = 215.9
 MIN_X = 0
 MAX_Y = 139.7
@@ -46,6 +44,7 @@ STEPS_PER_REVOLUTION = 4096
 
 
 # CONSTANTS
+# These are used to calculate the actual lengths of arms, excluding the motors.
 
 STEPPER_SHAFT_DIAMETER = 5.0
 STEPPER_RING_DIAMETER = 9.0
@@ -63,32 +62,7 @@ PEN_TO_ARM_B = PEN_TO_ARM_B_END + PEN_DIAMETER / 2
 ARM_B = ARM_B_LENGTH - STEPPER_A_TO_ARM_A - PEN_TO_ARM_B
 
 
-# LIGHT STRIP
-
-strip = neopixel.NeoPixel(STRIP_PIN, 10, brightness = 1.0, auto_write = True)
-strip.fill((0, 0, 0))
-
-
-# ERROR HANDLING
-
-FAIL_MISC = 0
-FAIL_I2C = 1
-error_codes = [
-    (255, 0, 0), # red: misc, see serial console
-    (255, 0, 255), # purple: missing/extra i2c addresses. num of lights corresponds to number of addresses found + 1
-]
-
-
 # FUNCTIONS
-
-
-def fail(error_code, num):
-    num = min(10, num)
-    num = max(1, num)
-    strip[:num] = [error_codes[error_code]] * num
-    while True:
-        pass
-
 
 # calculates the inner angle opposite c, given side lengths a, b, and c.
 def calc_inner_angle(a, b, c):
@@ -144,6 +118,7 @@ def steps_between(angle_1, angle_2):
     return angle_to_steps(diff)
 
 
+# Move both motors at the same time, such that they reach the target position at the same time.
 def move_steps(motor_a, motor_b, steps_a, steps_b, forward_a=True, forward_b=True):
     if steps_a > steps_b:
         steps_1, steps_2 = steps_a, steps_b
@@ -226,6 +201,7 @@ motor_b = stepper.StepperMotor(STEPPER_B[0], STEPPER_B[2], STEPPER_B[1], STEPPER
 
 # I2C
 
+# Use the pins to select a single sensor to send messages to.
 sensor_a = digitalio.DigitalInOut(SENSOR_A_PIN)
 sensor_b = digitalio.DigitalInOut(SENSOR_B_PIN)
 sensor_a.switch_to_output(value=False)
@@ -238,8 +214,18 @@ i2c = board.I2C()
 while not i2c.try_lock():
     pass
 
+# Select only sensor b, because we want to change its address to something different from
+# sensor a's
 sensor_b.value = True
+
+# Change the address for sensor b to 0x2a (default is 0x29). This part was difficult to figure out. See:
+# Message will need device address, register address, and new device address: https://github.com/sparkfun/SparkFun_VL53L1X_Arduino_Library/blob/master/src/st_src/vl53l1x_class.cpp#L156=
+# Register address is 0x0001: https://github.com/sparkfun/SparkFun_VL53L1X_Arduino_Library/blob/master/src/st_src/vl53l1x_class.h#L59=
+# Register address takes two bytes: https://github.com/sparkfun/SparkFun_VL53L1X_Arduino_Library/blob/master/src/st_src/vl53l1x_class.cpp#L1008=
+# i2c.writeto: https://docs.circuitpython.org/en/7.2.x/shared-bindings/busio/index.html#busio.I2C.writeto
 i2c.writeto(0x29, bytes([0, 0x01, 0x2a]))
+
+# Enable sensor a
 sensor_a.value = True
 
 i2c.unlock()
