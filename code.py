@@ -3,7 +3,6 @@ import adafruit_vl53l1x
 import board
 import digitalio
 import math
-import neopixel
 import time
 
 # CONFIGURATION
